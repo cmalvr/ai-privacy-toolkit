@@ -1,6 +1,6 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from l_diversity import L_Diversity
+from apt.security.l_diversity import L_Diversity
 from apt.minimization.minimizer import GeneralizeToRepresentative
 
 import warnings
@@ -104,7 +104,7 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers, param_g
             transformed_df = pd.DataFrame(transformed, columns=features)
             acc = model.score(transformed_df, y_holdout)
             print("Accuracy on minimized data:", acc)
-            print("Generalizations:", minimizer_instance.generalizations_)
+            print("Generalizations:", minimizer_instance.generalizations)
             best_params = params
             best_privacy = metric
             final_minimized_df = transformed_df
