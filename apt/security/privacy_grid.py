@@ -99,14 +99,41 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers,
     return results
 
 #  Displays the grid search results 
-def display_grid_search_results(results, threshold=0.0):
-    if not results:
-        print("No configurations found.")
+def display_grid_search_results(results, min_accuracy=None, max_deletion_ratio=None, sort_by=None):
+    """
+    Displays grid search results based on optional filtering thresholds and sorting.
+    
+    Parameters:
+      results (list): List of dictionaries, each containing 'k', 'l', 'deletion_ratio', 'accuracy',
+                      and 'generalizations'.
+      min_accuracy (float, optional): Only show configurations with accuracy >= min_accuracy.
+      max_deletion_ratio (float, optional): Only show configurations with deletion_ratio <= max_deletion_ratio.
+      sort_by (str, optional): Sort the results by "accuracy" (descending) or "deletion_ratio" (ascending).
+      
+    Example usages:
+      - display_grid_search_results(results): Prints all results
+      - display_grid_search_results(results, min_accuracy=0.9)
+      - display_grid_search_results(results, max_deletion_ratio=0.5)
+      - display_grid_search_results(results, min_accuracy=0.9, sort_by="deletion_ratio")
+    """
+    filtered = results
+    if min_accuracy is not None:
+        filtered = [r for r in filtered if r['accuracy'] >= min_accuracy]
+    if max_deletion_ratio is not None:
+        filtered = [r for r in filtered if r['deletion_ratio'] <= max_deletion_ratio]
+    
+    if sort_by == "accuracy":
+        filtered.sort(key=lambda r: r['accuracy'], reverse=True)
+    elif sort_by == "deletion_ratio":
+        filtered.sort(key=lambda r: r['deletion_ratio'])
+    
+    if not filtered:
+        print("No configurations match the specified thresholds.")
         return
-    for r in results:
-        if r['accuracy'] >= threshold:
-            print(f"Parameters: k={r['k']}, l={r['l']}")
-            print(f"Deletion Ratio: {r['deletion_ratio']:.3f}")
-            print(f"Accuracy on minimized data: {r['accuracy']:.3f}")
-            print(f"Generalizations: {r['generalizations']}")
-            print("-" * 40)
+    
+    for r in filtered:
+        print(f"Parameters: k={r['k']}, l={r['l']}")
+        print(f"Deletion Ratio: {r['deletion_ratio']:.3f}")
+        print(f"Accuracy on minimized data: {r['accuracy']:.3f}")
+        print(f"Generalizations: {r['generalizations']}")
+        print("-" * 40)
