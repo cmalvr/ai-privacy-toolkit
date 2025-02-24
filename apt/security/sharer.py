@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from apt.security.shamir import ShamirSecretSharingWrapper
+from apt.security.shamir import Shamir
 
 # --- Custom NCP Functions ---
 
@@ -44,34 +44,10 @@ def select_best_sharing_feature(minimized_df: pd.DataFrame,
                                 threshold: int = 3, 
                                 scale_factor: int = 100,
                                 min_acceptable_accuracy: float = None):
-    """
-    For each untouched feature in the minimized dataset, apply Shamir secret sharing (using the given scale factor
-    and threshold), reconstruct that feature, and evaluate the model's accuracy when that feature is replaced by
-    its reconstruction.
 
-    Untouched features are processed in order from highest to lowest sensitivity (as measured by NCP).
-    
-    Parameters:
-      minimized_df: DataFrame containing the minimized (generalized) data.
-      original_df: DataFrame containing the original training data (used for computing NCP).
-      untouched_features: List of feature names left "untouched" during minimization.
-      model: A trained model with a score() method (e.g., model1).
-      y_test: Ground truth labels for evaluation.
-      threshold: Minimum number of shares required for reconstruction.
-      scale_factor: Factor to scale float values to integers.
-      min_acceptable_accuracy: The minimum acceptable model accuracy. 
-                               If provided, the function will stop on the first feature 
-                               whose reconstructed dataset achieves at least this accuracy.
-    
-    Returns:
-      A tuple (best_feature, best_accuracy, best_reconstructed_df) where:
-        - best_feature: The feature selected for secret sharing.
-        - best_accuracy: The model's accuracy on the dataset with that feature reconstructed.
-        - best_reconstructed_df: The corresponding DataFrame.
-    """
 
     # Initialize the Shamir wrapper.
-    sss = ShamirSecretSharingWrapper(n_shares=5, threshold=threshold, scale_factor=scale_factor)
+    sss = Shamir(n_shares=5, threshold=threshold,scale_factor=100)
 
     # Compute baseline accuracy on the minimized data.
     baseline_acc = model.score(minimized_df, y_test)

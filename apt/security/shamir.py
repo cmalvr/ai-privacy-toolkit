@@ -34,7 +34,7 @@ def generate_shares(secret, n, k, prime=2**127 - 1):
         shares.append((x, y))
     return shares
 
-def reconstruct_secret(shares, prime=2**127 - 1):
+def reconstruct_secret(shares, prime=2**127 - 1, scale_factor=1):
     """
     Reconstruct the secret from a list of (x, y) shares using Lagrange interpolation.
     """
@@ -51,46 +51,26 @@ def reconstruct_secret(shares, prime=2**127 - 1):
         secret = (secret + yj * lagrange_coeff) % prime
     return secret
 
-class ShamirSecretSharingWrapper:
-    """
-    A simple wrapper class that applies Shamir's Secret Sharing to pandas DataFrames.
-    Splits integer (or integer-scaled float) values into shares, and reconstructs them.
-    """
-    def __init__(self, n_shares=5, threshold=3, prime=2**127 - 1):
-        """
-        :param n_shares: Total number of shares per secret.
-        :param threshold: Minimum number of shares needed to reconstruct.
-        :param prime: A large prime for modular arithmetic.
-        """
+class Shamir:
+    def __init__(self, n_shares=5, threshold=3, prime=2**127 - 1, scale_factor=1):
         self.n_shares = n_shares
         self.threshold = threshold
         self.prime = prime
+        self.scale_factor = scale_factor  # <-- now we have scale_factor
 
     def split_value(self, value):
-        """
-        Convert 'value' to int and split into shares.
-        If you're dealing with floats, you should multiply by a scale factor 
-        externally before calling this method.
-        """
-        secret = int(value)
+        # Multiply the float by scale_factor before splitting
+        secret = int(round(value * self.scale_factor))
         return generate_shares(secret, self.n_shares, self.threshold, self.prime)
 
     def split_dataframe(self, df, sensitive_columns):
-        """
-        For each column in 'sensitive_columns', split each cell's value into shares.
-        Returns a dictionary mapping each column to a DataFrame of shares 
-        (each row corresponds to a record, each column is one share).
-        """
         import pandas as pd
         shares_dict = {}
         for col in sensitive_columns:
             col_shares = []
             for val in df[col]:
-                # Generate shares for the value
-                share_list = self.split_value(val)
-                # Store only the y-part of each (x, y) share (assuming x=1..n_shares).
-                col_shares.append([s[1] for s in share_list])
-            # Create a DataFrame for these shares
+                shares = self.split_value(val)
+                col_shares.append([s[1] for s in shares])
             col_shares_df = pd.DataFrame(
                 col_shares,
                 columns=[f"{col}_share_{i}" for i in range(1, self.n_shares + 1)]
@@ -99,8 +79,6 @@ class ShamirSecretSharingWrapper:
         return shares_dict
 
     def reconstruct_value(self, shares_subset):
-        """
-        Reconstruct a secret from a subset of shares (list of (x, y) tuples).
-        The subset must meet or exceed the threshold.
-        """
-        return reconstruct_secret(shares_subset, self.prime)
+        # Reconstruct the scaled secret and then divide by scale_factor
+        scaled_secret = reconstruct_secret(shares_subset, self.prime)
+        return scaled_secret / self.scale_factor
