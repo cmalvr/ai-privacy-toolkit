@@ -140,7 +140,7 @@ pip install -r requirements.txt
 Note: The adversarial-robustness-toolbox (art) module has been removed from this file because it was not installing correctly. If needed, install it separately:
 pip install adversarial-robustness-toolbox
 
-Example Notebook
+** Example Notebook **
 
 The notebook l-diversity-grid-diabetes.ipynb is provided as an example of how to run the code in the notebooks module. It was executed in a Google Colab environment using Python 3.11.11.
 
