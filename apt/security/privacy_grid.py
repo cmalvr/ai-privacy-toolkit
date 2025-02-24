@@ -73,7 +73,7 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers, param_g
         # Anonymize the entire test dataset.
         print("Shape of normal data:", dataset.get_samples().shape)
         anonymized_data = anonymizer.anonymize(dataset)
-        print("Shape of anonymized data:", anonymized_data.get_samples().shape)
+        print("Shape of anonymized data:", anonymized_data.shape)
         if not isinstance(anonymized_data, pd.DataFrame):
             anonymized_data = pd.DataFrame(anonymized_data, columns=dataset.features_names)
         
