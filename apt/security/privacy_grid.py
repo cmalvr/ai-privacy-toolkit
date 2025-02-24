@@ -71,9 +71,9 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers, param_g
             train_only_QI=params.get('train_only_QI', False)
         )
         # Anonymize the entire test dataset.
-        print("Shape of normal data:", dataset.shape)
+        print("Shape of normal data:", dataset.get_samples().shape)
         anonymized_data = anonymizer.anonymize(dataset)
-        print("Shape of anonymized data:", anonymized_df.shape)
+        print("Shape of anonymized data:", anonymized_data.get_samples().shape)
         if not isinstance(anonymized_data, pd.DataFrame):
             anonymized_data = pd.DataFrame(anonymized_data, columns=dataset.features_names)
         
@@ -90,6 +90,7 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers, param_g
         print(f"Privacy metric: {metric}")
         
         if metric >= privacy_threshold:
+            print("Privacy Treshold is good enough. Minimizer is now running:")
             # Split the anonymized data (and labels) into a generalizer training set and a hold-out set.
             X_gen, X_holdout, y_gen, y_holdout = train_test_split(
                 anonymized_data, y_anonymized, test_size=0.4, random_state=38
