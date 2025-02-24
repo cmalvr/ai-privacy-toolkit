@@ -1,14 +1,14 @@
 # AI Privacy Toolkit: Enhanced Minimization with l‑Diversity and Privacy Monitoring using a Grid-Search
 
-This repository extends the original data minimization solution by integrating two distinct security features that significantly enhance data protection:
+This repository extends the original data minimization solution by integrating two distinct security features that significantly enhance data protection in the new security module inside the apt folder.
 
-1. **l‑diversity**  
+1. **l‑diversity  (apt/security/l_diversity.py)** 
    Data is partitioned into groups (cells) using a `DecisionTreeClassifier` based on fixed quasi-identifiers. Each group must contain at least *k* records and at least *l* distinct sensitive attribute values (e.g., "mean radius"). This ensures that every cell is diverse, reducing the risk of inference attacks.  
    - **k (Group Size):** Minimum number of records in each cell. Every group must have at least *k* members, ensuring anonymity.  
    - **l (Diversity Requirement):** Minimum number of distinct sensitive values in each cell. Note that l must be less than or equal to k.  
    This approach is inspired by the work of Machanavajjhala et al. ([2007](https://personal.utdallas.edu/~muratk/courses/privacy08f_files/ldiversity.pdf)) and uses existing anonymization modules as a guideline.
 
-2. **Privacy Monitoring with Enhanced Minimization**  
+2. **Privacy Monitoring with Enhanced Minimization (apt/security/privacy_grid.py)**  
    We monitor privacy by calculating the **deletion ratio** — the fraction of rows removed during anonymization — which serves as a simple measure of information loss. An incremental parameter search is then performed over pairs of parameters (k and l, with l ≤ k). For each configuration, if the deletion ratio is greater than 0 and the model’s accuracy on the minimized data remains above a target threshold, the configuration is stored.  
    Additionally, results are collected in a list so that the best configurations can be later reviewed and selected.  
    *Note:* Although our privacy metric is simple (deletion ratio), further work might incorporate more advanced measures such as the Normalized Certainty Penalty (NCP) ([Alahmadi et al., 2021](https://link.springer.com/article/10.1007/s43681-021-00095-8)).  
