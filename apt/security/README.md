@@ -69,17 +69,38 @@ Determine how much the data is anonymized (information loss) and ensure that suc
 
 **How It Works:**  
 
-### Deletion Ratio
+1. Data Preparation
 
-This metric is calculated as:
+Test data is wrapped in an `ArrayDataset` with proper feature names to ensure that the dataset is correctly formatted for anonymization and subsequent processing.
+
+2. Anonymization
+
+The anonymization process is handled by the `L_Diversity.anonymize(dataset)` function which:
+- Partitions the data using a decision tree classifier.
+- Retains only those cells that meet the l‑diversity requirement.
+- Records valid row indices in `self.valid_rows`.
+
+3. Deletion Ratio Calculation
+
+The deletion ratio is computed as the fraction of rows removed from the original dataset, providing a measure of the level of information loss due to anonymization.
+
 
 \[
 \text{Deletion Ratio} = \frac{\text{Original Rows} - \text{Anonymized Rows}}{\text{Original Rows}}
 \]
 
-- A higher deletion ratio indicates more aggressive anonymization (greater information loss).
+A higher deletion ratio indicates more aggressive anonymization (greater information loss).
 
-### Incremental Parameter Search
+
+4. Enhanced Minimization
+
+After anonymization, the data is split into two subsets:
+- A subset for fitting the `GeneralizeToRepresentative` minimizer.
+- A hold-out subset for evaluating the classifier’s accuracy.
+
+The minimizer generalizes the quasi-identifiers further, and the classifier’s accuracy on the minimized hold-out data is calculated.
+
+5. Incremental Search 
 
 The `grid_search_privacy` function iterates over combinations of (k, l) values (with l from 1 to k) and performs the following steps:
 
@@ -91,40 +112,7 @@ The `grid_search_privacy` function iterates over combinations of (k, l) values (
 - Evaluates the classifier’s accuracy on the minimized hold-out data.
 - Stores configurations where accuracy remains above the target threshold.
 
-### Result Collection
-
-Configurations that meet the criteria (deletion ratio > 0 and accuracy above the threshold) are stored for further analysis. A helper function is provided to format and display these results for informed parameter selection.
-
----
-
-## Implementation Details
-
-### 1. Data Preparation
-
-Test data is wrapped in an `ArrayDataset` with proper feature names to ensure that the dataset is correctly formatted for anonymization and subsequent processing.
-
-### 2. Anonymization
-
-The anonymization process is handled by the `L_Diversity.anonymize(dataset)` function which:
-- Partitions the data using a decision tree classifier.
-- Retains only those cells that meet the l‑diversity requirement.
-- Records valid row indices in `self.valid_rows`.
-
-### 3. Deletion Ratio Calculation
-
-The deletion ratio is computed as the fraction of rows removed from the original dataset, providing a measure of the level of information loss due to anonymization.
-
-### 4. Enhanced Minimization
-
-After anonymization, the data is split into two subsets:
-- A subset for fitting the `GeneralizeToRepresentative` minimizer.
-- A hold-out subset for evaluating the classifier’s accuracy.
-
-The minimizer generalizes the quasi-identifiers further, and the classifier’s accuracy on the minimized hold-out data is calculated.
-
-### 5. Incremental Search
-
-The `grid_search_privacy` function systematically searches through all (k, l) parameter pairs (with l ranging from 1 to k). It skips configurations where no deletion occurs (i.e., deletion ratio = 0) and only stores those configurations where the classifier’s accuracy meets or exceeds the target threshold.
+Configurations that meet the criteria (deletion ratio > 0 and accuracy above the threshold) are stored in a results object for further analysis.
 
 ### 6. Results Display
 
