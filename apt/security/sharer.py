@@ -36,18 +36,19 @@ def calculate_ncp_feature(original_df: pd.DataFrame, generalized_df: pd.DataFram
 
 # --- Main Function to Evaluate and Select Best Secret-Sharing Candidate Feature ---
 
-def select_best_sharing_feature(minimized_df: pd.DataFrame, 
+def select_best(minimized_df: pd.DataFrame, 
                                 original_df: pd.DataFrame,
                                 untouched_features: list, 
                                 model, 
                                 y_test,
                                 threshold: int = 3, 
                                 scale_factor: int = 100,
+                                n_shares: int = 5,
                                 min_acceptable_accuracy: float = None):
 
 
     # Initialize the Shamir wrapper.
-    sss = Shamir(n_shares=5, threshold=threshold,scale_factor=scale_factor)
+    sss = Shamir(n_shares=n_shares, threshold=threshold,scale_factor=scale_factor)
 
     # Compute baseline accuracy on the minimized data.
     baseline_acc = model.score(minimized_df, y_test)
