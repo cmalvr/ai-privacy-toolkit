@@ -114,7 +114,7 @@ The `grid_search_privacy` function iterates over combinations of (k, l) values (
 
 Configurations that meet the criteria (deletion ratio > 0 and accuracy above the threshold) are stored in a results object for further analysis.
 
-### 6. Results Display
+6. Results Display
 
 A separate helper function is provided to filter, sort, and display the grid search results. This function allows for optional filtering based on a minimum accuracy threshold and a maximum deletion ratio, as well as sorting by accuracy (in descending order) or deletion ratio (in ascending order).
 
