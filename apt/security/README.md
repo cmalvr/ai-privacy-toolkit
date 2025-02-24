@@ -1,8 +1,8 @@
-# AI Privacy Toolkit: Enhanced Minimization with l‑Anonymization and Privacy Monitoring
+# AI Privacy Toolkit: Enhanced Minimization with l‑Diversity and Privacy Monitoring using a Grid-Search
 
 This repository extends the original data minimization solution by integrating two distinct security features that significantly enhance data protection:
 
-1. **l‑Anonymization**  
+1. **l‑diversity**  
    Data is partitioned into groups (cells) using a `DecisionTreeClassifier` based on fixed quasi-identifiers. Each group must contain at least *k* records and at least *l* distinct sensitive attribute values (e.g., "mean radius"). This ensures that every cell is diverse, reducing the risk of inference attacks.  
    - **k (Group Size):** Minimum number of records in each cell. Every group must have at least *k* members, ensuring anonymity.  
    - **l (Diversity Requirement):** Minimum number of distinct sensitive values in each cell. Note that l must be less than or equal to k.  
