@@ -85,9 +85,9 @@ The anonymization process is handled by the `L_Diversity.anonymize(dataset)` fun
 The deletion ratio is computed as the fraction of rows removed from the original dataset, providing a measure of the level of information loss due to anonymization.
 
 
-\[
+$$
 \text{Deletion Ratio} = \frac{\text{Original Rows} - \text{Anonymized Rows}}{\text{Original Rows}}
-\]
+$$
 
 A higher deletion ratio indicates more aggressive anonymization (greater information loss).
 
