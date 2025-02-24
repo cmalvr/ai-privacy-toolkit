@@ -101,7 +101,7 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers,
             transformed_df = pd.DataFrame(transformed, columns=features)
             acc = model.score(transformed_df, y_holdout)
             print(f"Accuracy on minimized data: {acc:.3f}")
-            print("Generalizations:", minimizer_instance.generalizations_)
+            print("Generalizations:", minimizer_instance.generalizations)
             
             # Check if accuracy falls below target
             if acc < target_accuracy:
