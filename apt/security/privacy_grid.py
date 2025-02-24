@@ -70,10 +70,10 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers,
             
             # Check if any rows were removed; if not, skip this configuration
             if anonymized_data.shape[0] == original_rows:
-                print("No rows removed during anonymization; skipping this configuration.\n")
                 continue
             
-            # Compute deletion ratio (privacy metric)
+            # Compute deletion ratio (privacy metric), print out metric for parameters that caused information loss
+            print(f"Testing parameters: k={k}, l={l}")
             deletion_ratio = (original_rows - anonymized_data.shape[0]) / original_rows
             print(f"Deletion ratio (privacy metric): {deletion_ratio:.3f}")
             
@@ -83,7 +83,7 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers,
             valid_indices = anonymizer.valid_rows
             y_anonymized = dataset.get_labels()[valid_indices]
             
-            # Split anonymized data for minimizer training.
+            # Split anonymized data for minimizer training
             X_gen, X_holdout, y_gen, y_holdout = train_test_split(
                 anonymized_data, y_anonymized, test_size=0.4, random_state=38
             )
@@ -96,7 +96,8 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers,
                 features_to_minimize=quasi_identifiers
             )
             minimizer_instance.fit(X_gen, train_preds, features_names=features)
-            # Transform the hold-out set.
+
+            # Transform the hold-out set
             transformed = minimizer_instance.transform(X_holdout, features_names=features)
             transformed_df = pd.DataFrame(transformed, columns=features)
             acc = model.score(transformed_df, y_holdout)
