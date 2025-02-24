@@ -13,7 +13,7 @@ This repository extends the original data minimization solution by integrating t
    Additionally, results are collected in a list so that the best configurations can be later reviewed and selected.  
    *Note:* Although our privacy metric is simple (deletion ratio), further work might incorporate more advanced measures such as the Normalized Certainty Penalty (NCP) ([Alahmadi et al., 2021](https://link.springer.com/article/10.1007/s43681-021-00095-8)).  
    
-*Important:* This implementation works entirely on test data (no training data is needed) and is currently designed for classifier models. Future improvements could extend it to regression models and dynamically select quasi-identifiers and sensitive attributes through grid search over multiple permutations.
+*Important:* This implementation works entirely on test data (no training data is needed) and is currently designed for classifier models.
 
 ---
 
@@ -153,4 +153,4 @@ Ensures that each group (cell) contains at least k records and at least l distin
 	•	Privacy Monitoring with Enhanced Minimization:
 Uses the deletion ratio to measure information loss and performs an incremental search over (k, l) pairs to identify configurations that maintain high classifier accuracy on minimized test data. Results are stored and can be reviewed with a helper function. Although our current metric is simple, future work may implement more advanced measures like the Normalized Certainty Penalty (NCP) as suggested in Alahmadi et al., 2021.
 
-Our solution runs entirely on test data, making it suitable for real-world scenarios where training data is not available. Futher work could be done on training data. Currently, the implementation supports classifier models, with potential for future extension to regression models and dynamic selection of quasi-identifiers and sensitive attributes.
+Our solution runs entirely on test data, making it suitable for real-world scenarios where training data is not available. Futher work could be done on training data. Currently, the implementation supports classifier models, with potential for future extension to regression models. Future improvements could dynamically select quasi-identifiers and sensitive attributes through grid search over multiple permutations.
