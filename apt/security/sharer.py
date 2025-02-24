@@ -47,7 +47,7 @@ def select_best_sharing_feature(minimized_df: pd.DataFrame,
 
 
     # Initialize the Shamir wrapper.
-    sss = Shamir(n_shares=5, threshold=threshold,scale_factor=100)
+    sss = Shamir(n_shares=5, threshold=threshold,scale_factor=scale_factor)
 
     # Compute baseline accuracy on the minimized data.
     baseline_acc = model.score(minimized_df, y_test)
