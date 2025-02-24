@@ -53,7 +53,6 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers,
         # For each k, iterate l from l_min up to k (ensuring l <= k)
         for l in range(l_min, k + 1):
             params = {'k': k, 'l': l, 'categorical_features': [sensitive_attribute]}
-            print(f"Testing parameters: k={k}, l={l}")
             
             anonymizer = L_Diversity(
                 k=k,
