@@ -1,11 +1,9 @@
-# privacy_grid.py
-
 import pandas as pd
 from sklearn.model_selection import train_test_split
-import warnings
-from apt.security.l_diversity import L_Diversity
+from l_diversity import L_Diversity
 from apt.minimization.minimizer import GeneralizeToRepresentative
 
+import warnings
 warnings.filterwarnings("ignore")
 
 def compute_privacy_metric(anonymized_df, sensitive_attribute, quasi_identifiers):
@@ -48,7 +46,7 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers, param_g
         quasi_identifiers (list): List of quasi-identifier column names.
         param_grid (list of dict): List of parameter combinations (e.g., {'k': 3, 'l': 2}).
         privacy_threshold (int): Minimum acceptable diversity in any equivalence class.
-        model: The pre-trained model.
+        model: The pre-trained model (a classifier).
         features (list): List of feature names.
         target_accuracy (float): The target accuracy for the minimizer.
 
@@ -61,7 +59,6 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers, param_g
     best_params = None
     final_minimized_df = None
     best_privacy = None
-
     # Loop over each parameter configuration.
     for params in param_grid:
         print(f"Testing parameters: k={params['k']}, l={params['l']}")
@@ -71,7 +68,6 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers, param_g
             sensitive_attribute=sensitive_attribute,
             quasi_identifiers=quasi_identifiers,
             categorical_features=params.get('categorical_features', None),
-            is_regression=params.get('is_regression', True),
             train_only_QI=params.get('train_only_QI', False)
         )
         # Anonymize the entire test dataset.
@@ -96,11 +92,11 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers, param_g
             X_gen, X_holdout, y_gen, y_holdout = train_test_split(
                 anonymized_data, y_anonymized, test_size=0.4, random_state=38
             )
-            # Get model predictions on the generalizer training set.
+            # Get predictions on the generalizer training set.
             train_preds = model.predict(X_gen)
             # Instantiate and fit the minimizer on the generalizer training set.
             minimizer_instance = GeneralizeToRepresentative(
-                model, target_accuracy=target_accuracy, is_regression=True, features_to_minimize=quasi_identifiers
+                model, target_accuracy=target_accuracy, is_regression=False, features_to_minimize=quasi_identifiers
             )
             minimizer_instance.fit(X_gen, train_preds, features_names=features)
             # Transform the hold-out set.

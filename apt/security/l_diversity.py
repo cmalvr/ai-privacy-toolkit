@@ -1,5 +1,3 @@
-# l_diversity.py
-
 import numpy as np
 import pandas as pd
 from collections import Counter
@@ -7,7 +5,7 @@ from collections import Counter
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.preprocessing import OneHotEncoder
 
 from apt.utils.datasets import ArrayDataset, DATA_PANDAS_NUMPY_TYPE
@@ -18,9 +16,9 @@ class L_Diversity:
     Performs model-guided anonymization while enforcing l-diversity on a sensitive attribute.
     
     This class partitions the data into equivalence classes (cells) using a decision tree
-    based on the quasi-identifiers. Then it filters out cells that do not have at least l 
+    based on the quasi-identifiers. It then filters out cells that do not have at least l 
     distinct values for the sensitive attribute. The indices of the remaining rows are stored 
-    in `self.valid_rows` for label alignment.
+    in `self.valid_rows` for proper label alignment.
     
     Parameters:
         k (int): Minimum group size for decision tree leaves (must be at least 2).
@@ -29,7 +27,6 @@ class L_Diversity:
         quasi_identifiers (list or np.ndarray): List of quasi-identifier column names.
         quasi_identifer_slices (list of lists, optional): Lists of feature names for handling one-hot encoded groups.
         categorical_features (list, optional): List of categorical feature names for preprocessing.
-        is_regression (bool, optional): True for regression tasks; False for classification.
         train_only_QI (bool, optional): If True, the decision tree is trained using only quasi-identifiers.
     """
     def __init__(self, k: int,
@@ -38,7 +35,6 @@ class L_Diversity:
                  quasi_identifiers: Union[np.ndarray, list],
                  quasi_identifer_slices: Optional[list] = None,
                  categorical_features: Optional[list] = None,
-                 is_regression: Optional[bool] = False,
                  train_only_QI: Optional[bool] = False):
         if k < 2:
             raise ValueError("Parameter k must be at least 2")
@@ -51,12 +47,11 @@ class L_Diversity:
         self.sensitive_attribute = sensitive_attribute
         self.quasi_identifiers = quasi_identifiers
         self.categorical_features = categorical_features
-        self.is_regression = is_regression
         self.train_only_QI = train_only_QI
         self.features_names = None
         self.features = None
         self.quasi_identifer_slices = quasi_identifer_slices
-        self.valid_rows = None  # This will store indices of rows that pass l-diversity filtering
+        self.valid_rows = None  # Indices of rows that pass l-diversity filtering
 
     def anonymize(self, dataset: ArrayDataset) -> DATA_PANDAS_NUMPY_TYPE:
         """
@@ -65,10 +60,10 @@ class L_Diversity:
         Steps:
           1. Validate input and set feature names.
           2. Convert quasi-identifiers and categorical feature names to indices.
-          3. Identify the sensitive attribute index.
-          4. Partition the data using a decision tree.
+          3. Determine the sensitive attribute index.
+          4. Partition the data using a decision tree classifier.
           5. Replace quasi-identifier values with the representative of each cell.
-          6. Filter out rows from cells that do not meet the l-diversity requirement and store the valid indices.
+          6. Filter out rows from cells that do not meet the l-diversity requirement and store valid indices.
         
         Parameters:
             dataset (ArrayDataset): The dataset containing samples and labels.
@@ -81,7 +76,7 @@ class L_Diversity:
         self.features = list(range(dataset.get_samples().shape[1]))
         self.features_names = dataset.features_names if dataset.features_names is not None else self.features
 
-        # Validate sensitive attribute and quasi-identifiers.
+        # Validate that the sensitive attribute and quasi-identifiers are present.
         if self.sensitive_attribute not in self.features_names:
             raise ValueError("Sensitive attribute must be one of the features")
         if not set(self.quasi_identifiers).issubset(set(self.features_names)):
@@ -116,7 +111,7 @@ class L_Diversity:
 
     def _anonymize(self, x, y):
         """
-        Internal method that applies a decision tree to partition data and then enforces l-diversity.
+        Internal method that applies a decision tree to partition data and enforces l-diversity.
         
         Parameters:
             x (np.array): The feature matrix.
@@ -139,11 +134,8 @@ class L_Diversity:
         # Use only quasi-identifiers if specified.
         x_anonymizer_train = x_prepared if not self.train_only_QI else x_prepared[:, self.quasi_identifiers]
         
-        # Train a decision tree to partition the data.
-        if self.is_regression:
-            self._anonymizer = DecisionTreeRegressor(random_state=10, min_samples_split=2, min_samples_leaf=self.k)
-        else:
-            self._anonymizer = DecisionTreeClassifier(random_state=10, min_samples_split=2, min_samples_leaf=self.k)
+        # Train a decision tree classifier to partition the data.
+        self._anonymizer = DecisionTreeClassifier(random_state=10, min_samples_split=2, min_samples_leaf=self.k)
         self._anonymizer.fit(x_anonymizer_train, y)
         
         # Determine cells based on leaf nodes.
