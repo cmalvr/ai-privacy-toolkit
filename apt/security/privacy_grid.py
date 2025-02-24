@@ -51,7 +51,6 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers,
 
     for k in range(k_min, k_max + 1):
         for l in range(l_min, k + 1):
-            params = {'k': k, 'l': l, 'categorical_features': [sensitive_attribute]}
             anonymizer = L_Diversity(
                 k=k,
                 l=l,
@@ -90,14 +89,13 @@ def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers,
             transformed_df = pd.DataFrame(transformed, columns=features)
             acc = model.score(transformed_df, y_holdout)
             
-            if acc >= target_accuracy:
-                results.append({
+            results.append({
                     'k': k,
                     'l': l,
                     'deletion_ratio': deletion_ratio,
                     'accuracy': acc,
                     'generalizations': minimizer_instance.generalizations
-                })
+            })
     return results
 
 #  Displays the grid search results 
