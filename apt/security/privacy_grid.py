@@ -6,114 +6,111 @@ from apt.minimization.minimizer import GeneralizeToRepresentative
 import warnings
 warnings.filterwarnings("ignore")
 
-def compute_privacy_metric(anonymized_df, sensitive_attribute, quasi_identifiers):
+def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers, 
+                        model, features, target_accuracy,
+                        k_min=2, k_max=7, l_min=1):
     """
-    Compute the privacy metric by calculating the minimum number of distinct values
-    of the sensitive attribute in each equivalence class (grouped by quasi-identifiers).
-
+    Incrementally test pairs of (k, l) values where l runs from l_min to k.
+    
+    For each (k, l) pair:
+      1. Apply L_Diversity anonymization.
+      2. Compute the deletion ratio:
+             deletion_ratio = (original_rows - anonymized_rows) / original_rows.
+         Skip configuration if no rows are removed.
+      3. Display the deletion ratio.
+      4. Split the anonymized data into a generalizer training set and a hold-out set.
+      5. Fit the minimizer on the training set and transform the hold-out set.
+      6. Evaluate the model’s accuracy on the minimized hold-out set.
+      7. Stop (and return the configuration) if accuracy drops below target_accuracy.
+    
     Parameters:
-        anonymized_df (pd.DataFrame): The anonymized dataset.
-        sensitive_attribute (str): The sensitive attribute column name.
-        quasi_identifiers (list): List of quasi-identifier column names.
-
+      dataset: ArrayDataset containing your test data.
+      sensitive_attribute: The sensitive attribute column name.
+      quasi_identifiers: List of quasi-identifier feature names.
+      model: Pre-trained classifier.
+      features: List of all feature names.
+      target_accuracy: Minimum acceptable accuracy on the minimized data.
+      k_min, k_max: The range for k values to test.
+      l_min: The minimum l value (defaults to 1).
+    
     Returns:
-        int: The minimum diversity (distinct sensitive values) across all groups.
+      A tuple: (best_params, final_minimized_df, deletion_ratio)
+      where best_params is a dictionary with the chosen k and l values,
+      final_minimized_df is the minimized hold-out test dataset,
+      and deletion_ratio is the computed privacy metric for that configuration.
     """
-    groups = anonymized_df.groupby(quasi_identifiers)
-    diversity_series = groups[sensitive_attribute].nunique()
-    return diversity_series.min()
-
-def grid_search_privacy(dataset, sensitive_attribute, quasi_identifiers, param_grid, privacy_threshold,
-                        model, features, target_accuracy):
-    """
-    Perform a grid search over anonymization parameter configurations on the available test data.
-    This function assumes that no training data is available—only test data is used.
-
-    For each parameter configuration:
-      1. The entire test dataset is anonymized using L_Diversity.
-      2. A privacy metric is computed on the anonymized data.
-      3. If the privacy metric meets the threshold, the anonymized data is split into:
-           - A generalizer training set (to fit the minimizer).
-           - A hold-out set for final evaluation.
-      4. The minimizer (GeneralizeToRepresentative) is then fitted on the generalizer training set,
-         and used to transform the hold-out set.
-      5. The model’s performance is evaluated on the minimized hold-out set.
-      6. The first configuration meeting the privacy threshold is returned.
-
-    Parameters:
-        dataset (ArrayDataset): The test dataset wrapped in an ArrayDataset.
-        sensitive_attribute (str): The sensitive attribute column name.
-        quasi_identifiers (list): List of quasi-identifier column names.
-        param_grid (list of dict): List of parameter combinations (e.g., {'k': 3, 'l': 2}).
-        privacy_threshold (int): Minimum acceptable diversity in any equivalence class.
-        model: The pre-trained model (a classifier).
-        features (list): List of feature names.
-        target_accuracy (float): The target accuracy for the minimizer.
-
-    Returns:
-        tuple: (best_params, final_minimized_df, privacy_metric)
-            best_params: The parameter combination that met the threshold.
-            final_minimized_df: The minimized hold-out test dataset.
-            privacy_metric: The computed privacy metric.
-    """
+    original_rows = dataset.get_samples().shape[0]
     best_params = None
     final_minimized_df = None
-    best_privacy = None
-    # Loop over each parameter configuration.
-    for params in param_grid:
-        print(f"Testing parameters: k={params['k']}, l={params['l']}")
-        anonymizer = L_Diversity(
-            k=params['k'],
-            l=params['l'],
-            sensitive_attribute=sensitive_attribute,
-            quasi_identifiers=quasi_identifiers,
-            categorical_features=params.get('categorical_features', None),
-            train_only_QI=params.get('train_only_QI', False)
-        )
-        # Anonymize the entire test dataset.
-        print("Shape of normal data:", dataset.get_samples().shape)
-        anonymized_data = anonymizer.anonymize(dataset)
-        print("Shape of anonymized data:", anonymized_data.shape)
-        if not isinstance(anonymized_data, pd.DataFrame):
-            anonymized_data = pd.DataFrame(anonymized_data, columns=dataset.features_names)
-        
-        # Retrieve valid indices from the anonymizer.
-        if not hasattr(anonymizer, "valid_rows"):
-            raise ValueError("L_Diversity must set the 'valid_rows' attribute with the indices of valid rows.")
-        valid_indices = anonymizer.valid_rows
-        
-        # Align labels with the anonymized data.
-        y_anonymized = dataset.get_labels()[valid_indices]
-        
-        # Compute the privacy metric.
-        metric = compute_privacy_metric(anonymized_data, sensitive_attribute, quasi_identifiers)
-        print(f"Privacy metric: {metric}")
-        
-        if metric >= privacy_threshold:
-            print("Privacy Treshold is good enough. Minimizer is now running:")
-            # Split the anonymized data (and labels) into a generalizer training set and a hold-out set.
+    best_deletion_ratio = None
+
+    # Get original data as a DataFrame
+    original_df = dataset.get_samples() if isinstance(dataset.get_samples(), pd.DataFrame) \
+        else pd.DataFrame(dataset.get_samples(), columns=dataset.features_names)
+
+    # Iterate over k from k_min to k_max
+    for k in range(k_min, k_max + 1):
+        # For each k, iterate l from l_min up to k (ensuring l <= k)
+        for l in range(l_min, k + 1):
+            params = {'k': k, 'l': l, 'categorical_features': [sensitive_attribute]}
+            print(f"Testing parameters: k={k}, l={l}")
+            
+            anonymizer = L_Diversity(
+                k=k,
+                l=l,
+                sensitive_attribute=sensitive_attribute,
+                quasi_identifiers=quasi_identifiers,
+                categorical_features=[sensitive_attribute],
+                train_only_QI=False
+            )
+            # Apply anonymization
+            anonymized_data = anonymizer.anonymize(dataset)
+            if not isinstance(anonymized_data, pd.DataFrame):
+                anonymized_data = pd.DataFrame(anonymized_data, columns=dataset.features_names)
+            
+            # Check if any rows were removed; if not, skip this configuration
+            if anonymized_data.shape[0] == original_rows:
+                print("No rows removed during anonymization; skipping this configuration.\n")
+                continue
+            
+            # Compute deletion ratio (privacy metric)
+            deletion_ratio = (original_rows - anonymized_data.shape[0]) / original_rows
+            print(f"Deletion ratio (privacy metric): {deletion_ratio:.3f}")
+            
+            # Retrieve valid indices from the anonymizer
+            if not hasattr(anonymizer, "valid_rows"):
+                raise ValueError("L_Diversity must set the 'valid_rows' attribute with the indices of valid rows.")
+            valid_indices = anonymizer.valid_rows
+            y_anonymized = dataset.get_labels()[valid_indices]
+            
+            # Split anonymized data for minimizer training.
             X_gen, X_holdout, y_gen, y_holdout = train_test_split(
                 anonymized_data, y_anonymized, test_size=0.4, random_state=38
             )
-            # Get predictions on the generalizer training set.
+            
+            # Get predictions on the generalizer training set
             train_preds = model.predict(X_gen)
-            # Instantiate and fit the minimizer on the generalizer training set.
+            # Fit the minimizer
             minimizer_instance = GeneralizeToRepresentative(
-                model, target_accuracy=target_accuracy, is_regression=False, features_to_minimize=quasi_identifiers
+                model, target_accuracy=target_accuracy, is_regression=False,
+                features_to_minimize=quasi_identifiers
             )
             minimizer_instance.fit(X_gen, train_preds, features_names=features)
             # Transform the hold-out set.
             transformed = minimizer_instance.transform(X_holdout, features_names=features)
             transformed_df = pd.DataFrame(transformed, columns=features)
             acc = model.score(transformed_df, y_holdout)
-            print("Accuracy on minimized data:", acc)
-            print("Generalizations:", minimizer_instance.generalizations)
-            best_params = params
-            best_privacy = metric
-            final_minimized_df = transformed_df
-            print("Configuration accepted.")
-            break
-        else:
-            print("Configuration rejected: privacy level below threshold.")
-    
-    return best_params, final_minimized_df, best_privacy
+            print(f"Accuracy on minimized data: {acc:.3f}")
+            print("Generalizations:", minimizer_instance.generalizations_)
+            
+            # Check if accuracy falls below target
+            if acc < target_accuracy:
+                print("Accuracy dropped below target; stopping search.\n")
+                best_params = params
+                best_deletion_ratio = deletion_ratio
+                final_minimized_df = transformed_df
+                return best_params, final_minimized_df, best_deletion_ratio
+            else:
+                print("Configuration acceptable; continuing search...\n")
+                
+    return best_params, final_minimized_df, best_deletion_ratio
