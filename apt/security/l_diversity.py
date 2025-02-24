@@ -11,24 +11,24 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.preprocessing import OneHotEncoder
 
 from apt.utils.datasets import ArrayDataset, DATA_PANDAS_NUMPY_TYPE
-
 from typing import Union, Optional
 
 class L_Diversity:
     """
     Performs model-guided anonymization while enforcing l-diversity on a sensitive attribute.
-
+    
     This class partitions the data into equivalence classes (cells) using a decision tree
-    based on the quasi-identifiers. Then it verifies that each cell has at least l distinct
-    values for the sensitive attribute. If a cell does not meet this threshold, its rows are discarded.
-
+    based on the quasi-identifiers. Then it filters out cells that do not have at least l 
+    distinct values for the sensitive attribute. The indices of the remaining rows are stored 
+    in `self.valid_rows` for label alignment.
+    
     Parameters:
         k (int): Minimum group size for decision tree leaves (must be at least 2).
         l (int): l-diversity threshold; each equivalence class must have at least l distinct sensitive values.
         sensitive_attribute (str): Name of the sensitive attribute column.
         quasi_identifiers (list or np.ndarray): List of quasi-identifier column names.
         quasi_identifer_slices (list of lists, optional): Lists of feature names for handling one-hot encoded groups.
-        categorical_features (list, optional): List of categorical feature names for proper preprocessing.
+        categorical_features (list, optional): List of categorical feature names for preprocessing.
         is_regression (bool, optional): True for regression tasks; False for classification.
         train_only_QI (bool, optional): If True, the decision tree is trained using only quasi-identifiers.
     """
@@ -56,22 +56,23 @@ class L_Diversity:
         self.features_names = None
         self.features = None
         self.quasi_identifer_slices = quasi_identifer_slices
+        self.valid_rows = None  # This will store indices of rows that pass l-diversity filtering
 
     def anonymize(self, dataset: ArrayDataset) -> DATA_PANDAS_NUMPY_TYPE:
         """
         Anonymize the dataset by enforcing l-diversity on the sensitive attribute.
-
+        
         Steps:
           1. Validate input and set feature names.
-          2. Convert quasi-identifier and categorical feature names to column indices.
+          2. Convert quasi-identifiers and categorical feature names to indices.
           3. Identify the sensitive attribute index.
           4. Partition the data using a decision tree.
-          5. Replace quasi-identifier values with the cell representatives.
-          6. Filter out cells that do not meet the l-diversity requirement.
-
+          5. Replace quasi-identifier values with the representative of each cell.
+          6. Filter out rows from cells that do not meet the l-diversity requirement and store the valid indices.
+        
         Parameters:
             dataset (ArrayDataset): The dataset containing samples and labels.
-
+        
         Returns:
             The anonymized dataset (as a pandas DataFrame if the input was pandas).
         """
@@ -80,7 +81,7 @@ class L_Diversity:
         self.features = list(range(dataset.get_samples().shape[1]))
         self.features_names = dataset.features_names if dataset.features_names is not None else self.features
 
-        # Ensure that the sensitive attribute is present.
+        # Validate sensitive attribute and quasi-identifiers.
         if self.sensitive_attribute not in self.features_names:
             raise ValueError("Sensitive attribute must be one of the features")
         if not set(self.quasi_identifiers).issubset(set(self.features_names)):
@@ -91,7 +92,7 @@ class L_Diversity:
         # Convert quasi-identifiers from names to indices.
         self.quasi_identifiers = [i for i, name in enumerate(self.features_names) if name in self.quasi_identifiers]
         
-        # Process one-hot encoded feature slices if provided.
+        # Process one-hot encoded slices, if provided.
         if self.quasi_identifer_slices:
             temp_slices = []
             for slice in self.quasi_identifer_slices:
@@ -103,7 +104,7 @@ class L_Diversity:
         if self.categorical_features:
             self.categorical_features = [i for i, name in enumerate(self.features_names) if name in self.categorical_features]
         
-        # Determine the index of the sensitive attribute.
+        # Determine the sensitive attribute index.
         self.sensitive_index = self.features_names.index(self.sensitive_attribute)
         
         # Run the anonymization process.
@@ -115,17 +116,19 @@ class L_Diversity:
 
     def _anonymize(self, x, y):
         """
-        Internal method that applies the decision tree to partition data and then enforces l-diversity.
-
+        Internal method that applies a decision tree to partition data and then enforces l-diversity.
+        
         Parameters:
             x (np.array): The feature matrix.
             y (np.array): The label vector.
-
+        
         Returns:
             np.array: The anonymized feature matrix.
         """
         if x.shape[0] != y.shape[0]:
             raise ValueError("Number of samples in x and y must match")
+        
+        # Preprocess non-numeric data if necessary.
         if x.dtype.kind not in 'iufc':
             if not self.categorical_features:
                 raise ValueError("For non-numeric data, specify categorical_features")
@@ -133,52 +136,59 @@ class L_Diversity:
         else:
             x_prepared = x
         
+        # Use only quasi-identifiers if specified.
         x_anonymizer_train = x_prepared if not self.train_only_QI else x_prepared[:, self.quasi_identifiers]
         
         # Train a decision tree to partition the data.
         if self.is_regression:
-            from sklearn.tree import DecisionTreeRegressor
             self._anonymizer = DecisionTreeRegressor(random_state=10, min_samples_split=2, min_samples_leaf=self.k)
         else:
-            from sklearn.tree import DecisionTreeClassifier
             self._anonymizer = DecisionTreeClassifier(random_state=10, min_samples_split=2, min_samples_leaf=self.k)
         self._anonymizer.fit(x_anonymizer_train, y)
         
-        # Partition the data into cells (leaf nodes).
+        # Determine cells based on leaf nodes.
         cells_by_id = self._calculate_cells(x, x_anonymizer_train)
         node_ids = self._find_sample_nodes(x_anonymizer_train)
         
-        # Collect the set of distinct sensitive values in each cell.
+        # Build sensitive attribute sets for each cell.
         cell_sensitive = {}
         for idx, node_id in enumerate(node_ids):
-            sensitive_value = x[idx, self.sensitive_index]
-            cell_sensitive.setdefault(node_id, set()).add(sensitive_value)
+            val = x[idx, self.sensitive_index]
+            cell_sensitive.setdefault(node_id, set()).add(val)
+        
+        # Identify valid cells that meet l-diversity.
         valid_cells = {node_id for node_id, sens_set in cell_sensitive.items() if len(sens_set) >= self.l}
         
-        # Replace quasi-identifier values with representative values.
-        anonymized_x = self._anonymize_data(x, x_anonymizer_train, cells_by_id)
-        # Keep only rows from cells meeting the l-diversity requirement.
+        # Mark rows that belong to valid cells.
         valid_rows = [i for i, node_id in enumerate(node_ids) if node_id in valid_cells]
+        self.valid_rows = valid_rows  # Save valid row indices
+        
+        # Replace quasi-identifier values with the representative value for their cell.
+        anonymized_x = self._anonymize_data(x, x_anonymizer_train, cells_by_id)
+        # Return only the rows that passed the l-diversity test.
         final_x = anonymized_x[valid_rows, :]
         return final_x
-    
-# Identify the leaf nodes (cells) of the decision tree.
+
     def _calculate_cells(self, x, x_anonymizer_train):
+        """
+        Identify the leaf nodes (cells) of the decision tree.
+        """
         cells_by_id = {}
         leaves = []
         for node, feature in enumerate(self._anonymizer.tree_.feature):
             if feature == -2:  # Leaf node indicator in scikit-learn.
                 leaves.append(node)
                 hist = [int(i) for i in self._anonymizer.tree_.value[node][0]]
-                cell = {'label': 1, 'hist': hist, 'id': int(node)}
+                cell = {'id': int(node), 'hist': hist}
                 cells_by_id[cell['id']] = cell
         self._nodes = leaves
         self._find_representatives(x, x_anonymizer_train, cells_by_id.values())
         return cells_by_id
-    
-# For each cell, determine a representative value for each quasi-identifier.
-    def _find_representatives(self, x, x_anonymizer_train, cells):
 
+    def _find_representatives(self, x, x_anonymizer_train, cells):
+        """
+        For each cell, determine a representative value for each quasi-identifier.
+        """
         node_ids = self._find_sample_nodes(x_anonymizer_train)
         all_one_hot_features = set()
         if self.quasi_identifer_slices:
@@ -190,6 +200,7 @@ class L_Diversity:
             done = set()
             for feature in self.quasi_identifiers:
                 if feature not in done:
+                    # Handle one-hot encoded features as a group.
                     if feature in all_one_hot_features:
                         for slice in self.quasi_identifer_slices:
                             if feature in slice:
@@ -208,28 +219,36 @@ class L_Diversity:
                             rep_val = min(values, key=lambda v: abs(v - median))
                             cell['representative'][feature] = rep_val
 
-# For each sample, determine its leaf node (cell) using the decision tree.
     def _find_sample_nodes(self, samples):
+        """
+        For each sample, determine its leaf node using the decision tree.
+        """
         paths = self._anonymizer.decision_path(samples).toarray()
         node_set = set(self._nodes)
         return [list(set(np.where(p == 1)[0]) & node_set)[0] for p in paths]
 
-# Map each sample to its corresponding cell based on the decision tree.
     def _find_sample_cells(self, samples, cells_by_id):
+        """
+        Map each sample to its corresponding cell.
+        """
         node_ids = self._find_sample_nodes(samples)
         return [cells_by_id[node_id] for node_id in node_ids]
-    
-# Replace the quasi-identifier values in the data with their cell's representative values.
+
     def _anonymize_data(self, x, x_anonymizer_train, cells_by_id):
+        """
+        Replace the quasi-identifier values in the data with the representative values of their cell.
+        """
         cells = self._find_sample_cells(x_anonymizer_train, cells_by_id)
         for i, row in enumerate(x):
             cell = cells[i]
             for feature, rep_value in cell['representative'].items():
                 row[feature] = rep_value
         return x
-    
-# Preprocess non-numeric data by applying one-hot encoding to categorical features.
+
     def _modify_categorical_features(self, x):
+        """
+        Preprocess non-numeric data by applying one-hot encoding to categorical features.
+        """
         used_features = self.features if not self.train_only_QI else self.quasi_identifiers
         numeric_features = [f for f in self.features if f in used_features and 
                             (not self.categorical_features or f not in self.categorical_features)]
